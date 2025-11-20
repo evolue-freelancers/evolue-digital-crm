@@ -1,0 +1,35 @@
+{
+  "common": {
+    "welcome": "Bem-vindo",
+    "hello": "Olá",
+    "loading": "Carregando...",
+    "error": "Erro",
+    "success": "Sucesso",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "save": "Salvar",
+    "edit": "Editar",
+    "delete": "Deletar",
+    "create": "Criar",
+    "update": "Atualizar",
+    "back": "Voltar",
+    "next": "Próximo",
+    "previous": "Anterior",
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "actions": "Ações"
+  },
+  "home": {
+    "title": "Página Inicial",
+    "description": "Bem-vindo ao sistema"
+  },
+  "auth": {
+    "login": "Entrar",
+    "logout": "Sair",
+    "register": "Registrar",
+    "email": "E-mail",
+    "password": "Senha",
+    "forgotPassword": "Esqueceu a senha?",
+    "rememberMe": "Lembrar-me"
+  }
+}

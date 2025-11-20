@@ -18,14 +18,9 @@ const prisma = new PrismaClient({
   adapter,
 });
 
-/**
- * Limpa todas as tabelas do banco de dados
- * Respeita a ordem das foreign keys (onDelete: Cascade)
- */
 async function cleanDatabase() {
   console.log("🧹 Cleaning database...");
 
-  // Deletar tabelas com foreign keys primeiro (ordem inversa das dependências)
   await prisma.rolePermission.deleteMany();
   console.log("  ✓ Deleted role_permissions");
 
@@ -41,7 +36,6 @@ async function cleanDatabase() {
   await prisma.verificationToken.deleteMany();
   console.log("  ✓ Deleted verification_tokens");
 
-  // Deletar tabelas principais
   await prisma.user.deleteMany();
   console.log("  ✓ Deleted users");
 
@@ -54,9 +48,6 @@ async function cleanDatabase() {
   console.log("✅ Database cleaned successfully");
 }
 
-/**
- * Cria todas as permissions no banco de dados
- */
 async function createPermissions() {
   console.log("🔐 Creating permissions...");
 
@@ -79,9 +70,6 @@ async function createPermissions() {
   console.log(`✅ Created ${permissionsData.length} permissions`);
 }
 
-/**
- * Cria todas as roles no banco de dados
- */
 async function createRoles() {
   console.log("📝 Creating roles...");
 
@@ -99,9 +87,6 @@ async function createRoles() {
   console.log(`✅ Created ${rolesData.length} roles`);
 }
 
-/**
- * Cria os mapeamentos de role-permission
- */
 async function createRolePermissions() {
   console.log("🔗 Creating role-permission mappings...");
 
@@ -133,9 +118,6 @@ async function createRolePermissions() {
   console.log(`✅ Created ${rolePermissionCount} role-permission mappings`);
 }
 
-/**
- * Cria um usuário no banco de dados
- */
 async function createUser(data: {
   email: string;
   name?: string;
@@ -154,9 +136,6 @@ async function createUser(data: {
   return user;
 }
 
-/**
- * Cria o usuário superadmin com a role superadmin atribuída
- */
 async function createSuperAdmin(data: {
   email: string;
   name?: string;
@@ -165,7 +144,6 @@ async function createSuperAdmin(data: {
 }) {
   console.log("👤 Creating superadmin user...");
 
-  // Buscar a role superadmin
   const superAdminRole = await prisma.role.findUnique({
     where: { name: ROLES.SUPERADMIN },
   });
@@ -176,7 +154,6 @@ async function createSuperAdmin(data: {
     );
   }
 
-  // Criar o usuário
   const user = await createUser({
     email: data.email,
     name: data.name,
@@ -184,7 +161,6 @@ async function createSuperAdmin(data: {
     image: data.image,
   });
 
-  // Atribuir a role superadmin ao usuário
   await prisma.userRole.create({
     data: {
       userId: user.id,
@@ -201,19 +177,10 @@ async function main() {
   console.log("🌱 Starting seed...");
 
   try {
-    // 1. Limpar banco de dados
     await cleanDatabase();
-
-    // 2. Criar permissions
     await createPermissions();
-
-    // 3. Criar roles
     await createRoles();
-
-    // 4. Criar role-permission mappings
     await createRolePermissions();
-
-    // 5. Criar superadmin
     await createSuperAdmin({
       email: "admin@evolue.com",
       name: "Super Admin",
