@@ -4,18 +4,28 @@ import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 
-import { routing } from "@/i18n/routing";
-import { cn } from "@/lib/utils";
+import { cn, rootDomain, rootDomainDescription } from "@/lib/utils";
 
 import { Providers } from "./providers";
 
-export const metadata: Metadata = {
-  title: "Evolue CRM",
-  description: "Sistema de gestão CRM",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ subdomain: string }>;
+}): Promise<Metadata> {
+  const { subdomain } = await params;
 
-export function generateStaticParams() {
-  return routing.locales.map((locale) => ({ locale }));
+  if (!subdomain) {
+    return {
+      title: rootDomain,
+      description: rootDomainDescription,
+    };
+  }
+
+  return {
+    title: `${subdomain}.${rootDomain}`,
+    description: `Subdomain page for ${subdomain}.${rootDomain}`,
+  };
 }
 
 export default async function RootLayout({
@@ -23,7 +33,9 @@ export default async function RootLayout({
   params,
 }: Readonly<{
   children: React.ReactNode;
-  params: Promise<{ locale: string }>;
+  params: Promise<{
+    locale: string;
+  }>;
 }>) {
   const { locale } = await params;
   const messages = await getMessages();
