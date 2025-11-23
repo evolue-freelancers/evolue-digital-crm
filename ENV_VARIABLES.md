@@ -74,6 +74,23 @@ Ambiente de execução. Configure como `production` na Vercel.
 2. Vá em **Settings** > **Environment Variables**
 3. Adicione todas as variáveis listadas acima
 4. Certifique-se de configurar para **Production**, **Preview** e **Development** conforme necessário
+5. **IMPORTANTE**: Configure o `DATABASE_URL` antes do primeiro deploy para que as migrações sejam executadas automaticamente
+
+## Migrações do Banco de Dados
+
+As migrações do Prisma são executadas automaticamente durante o build através do script `build` no `package.json`:
+
+```json
+"build": "prisma generate && prisma migrate deploy && next build"
+```
+
+Isso garante que:
+
+1. O Prisma Client seja gerado
+2. As migrações sejam aplicadas ao banco de dados
+3. O build do Next.js seja executado
+
+**Nota**: Certifique-se de que o `DATABASE_URL` está configurado corretamente antes do primeiro deploy, caso contrário o build falhará.
 
 ## Notas Importantes
 
@@ -82,3 +99,4 @@ Ambiente de execução. Configure como `production` na Vercel.
 - O `BETTER_AUTH_SECRET` deve ser único e seguro
 - O `RESEND_FROM_EMAIL` deve estar verificado no Resend antes de usar em produção
 - Configure domínios wildcard (`*.evolue.com.br`) na Vercel para suportar multi-tenancy
+- **O `DATABASE_URL` deve estar configurado antes do primeiro deploy** para que as migrações sejam executadas

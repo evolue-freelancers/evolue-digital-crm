@@ -107,6 +107,23 @@ export async function resolveTenantId(
       mode: "tenant",
     };
   } catch (error) {
+    // Se a tabela não existe, retorna modo plataforma para não quebrar o app
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "P2021"
+    ) {
+      console.warn(
+        "Database tables not found. Please run migrations: prisma migrate deploy"
+      );
+      return {
+        tenantId: null,
+        tenant: null,
+        mode: "platform",
+      };
+    }
+
     console.error("Error resolving tenant:", error);
     return {
       tenantId: null,
