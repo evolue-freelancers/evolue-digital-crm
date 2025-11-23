@@ -26,10 +26,64 @@
   "auth": {
     "login": "Entrar",
     "logout": "Sair",
-    "register": "Registrar",
     "email": "E-mail",
     "password": "Senha",
     "forgotPassword": "Esqueceu a senha?",
-    "rememberMe": "Lembrar-me"
+    "rememberMe": "Lembrar-me",
+    "confirmPassword": "Confirmar senha",
+    "resetPassword": "Redefinir senha",
+    "sendResetLink": "Enviar link de redefinição",
+    "backToLogin": "Voltar para login"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Bem-vindo ao dashboard"
+  },
+  "errors": {
+    "tenantNotFound": {
+      "title": "Tenant não encontrado",
+      "message": "O tenant que você está tentando acessar não existe ou foi removido.",
+      "contactSupport": "Entre em contato com o suporte se acredita que isso é um erro."
+    },
+    "tenantSuspended": {
+      "title": "Tenant suspenso",
+      "message": "Este tenant está temporariamente suspenso. Entre em contato com o suporte para mais informações.",
+      "contactSupport": "Entre em contato com o suporte"
+    },
+    "unauthorized": {
+      "title": "Acesso negado",
+      "message": "Você não tem permissão para acessar este tenant.",
+      "logout": "Fazer logout",
+      "goBack": "Voltar"
+    }
+  },
+  "partners": {
+    "title": "Parceiros",
+    "description": "Gerencie todos os tenants do sistema",
+    "createTenant": "Criar Tenant",
+    "searchPlaceholder": "Buscar tenants...",
+    "loading": "Carregando...",
+    "name": "Nome",
+    "slug": "Slug",
+    "status": "Status",
+    "email": "E-mail",
+    "password": "Senha",
+    "confirmPassword": "Confirmar senha",
+    "role": "Função",
+    "cancel": "Cancelar",
+    "create": "Criar",
+    "creating": "Criando...",
+    "createTenantTitle": "Criar Novo Tenant",
+    "createTenantDescription": "Preencha os dados para criar um novo tenant no sistema.",
+    "createUserTitle": "Adicionar Usuário ao Tenant",
+    "createUserDescription": "Crie um novo usuário e adicione-o como membro deste tenant.",
+    "namePlaceholder": "Nome do tenant",
+    "slugPlaceholder": "slug-do-tenant",
+    "selectStatus": "Selecione o status",
+    "emailPlaceholder": "usuario@exemplo.com",
+    "passwordPlaceholder": "Senha do usuário",
+    "confirmPasswordPlaceholder": "Confirme a senha",
+    "generatePassword": "Gerar senha aleatória",
+    "selectRole": "Selecione a função"
   }
 }

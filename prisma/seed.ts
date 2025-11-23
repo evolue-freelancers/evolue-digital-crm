@@ -1,202 +1,118 @@
-import "dotenv/config";
+import { ROLES } from "../src/constants/roles";
+import { auth } from "../src/lib/auth";
+import { prisma } from "../src/lib/prisma";
 
-import { PrismaPg } from "@prisma/adapter-pg";
-
-import {
-  PERMISSION_DESCRIPTIONS,
-  PERMISSIONS,
-  ROLE_PERMISSIONS,
-} from "../src/constants/permissions";
-import { ROLE_DESCRIPTIONS, ROLES } from "../src/constants/roles";
-import { PrismaClient } from "../src/generated/prisma/client";
-
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
-});
-
-const prisma = new PrismaClient({
-  adapter,
-});
-
+/**
+ * Limpa todas as tabelas do banco de dados
+ * Ordem respeitando foreign keys
+ */
 async function cleanDatabase() {
-  console.log("🧹 Cleaning database...");
+  console.log("🧹 Limpando banco de dados...");
 
-  await prisma.rolePermission.deleteMany();
-  console.log("  ✓ Deleted role_permissions");
+  // Ordem de deleção respeitando foreign keys
+  await prisma.tenantMember.deleteMany();
+  console.log("   ✅ TenantMember limpo");
 
-  await prisma.userRole.deleteMany();
-  console.log("  ✓ Deleted user_roles");
-
-  await prisma.account.deleteMany();
-  console.log("  ✓ Deleted accounts");
+  await prisma.domain.deleteMany();
+  console.log("   ✅ Domain limpo");
 
   await prisma.session.deleteMany();
-  console.log("  ✓ Deleted sessions");
+  console.log("   ✅ Session limpo");
 
-  await prisma.verificationToken.deleteMany();
-  console.log("  ✓ Deleted verification_tokens");
+  await prisma.account.deleteMany();
+  console.log("   ✅ Account limpo");
+
+  await prisma.verification.deleteMany();
+  console.log("   ✅ Verification limpo");
+
+  await prisma.tenant.deleteMany();
+  console.log("   ✅ Tenant limpo");
 
   await prisma.user.deleteMany();
-  console.log("  ✓ Deleted users");
+  console.log("   ✅ User limpo");
 
-  await prisma.role.deleteMany();
-  console.log("  ✓ Deleted roles");
-
-  await prisma.permission.deleteMany();
-  console.log("  ✓ Deleted permissions");
-
-  console.log("✅ Database cleaned successfully");
+  console.log("✅ Banco de dados limpo com sucesso!");
 }
 
-async function createPermissions() {
-  console.log("🔐 Creating permissions...");
+/**
+ * Cria um usuário usando Better Auth
+ * @param email - Email do usuário
+ * @param password - Senha do usuário
+ * @param name - Nome do usuário
+ * @param role - Role do usuário (opcional)
+ * @param emailVerified - Se o email está verificado (padrão: true)
+ * @returns Usuário criado
+ */
+async function createUser({
+  email,
+  password,
+  name,
+  role,
+  emailVerified = true,
+}: {
+  email: string;
+  password: string;
+  name: string;
+  role?: string;
+  emailVerified?: boolean;
+}) {
+  console.log(`📝 Criando usuário: ${email}...`);
 
-  const permissionsData = Object.values(PERMISSIONS).map((name) => {
-    const [resource, action] = name.split(":");
-    return {
+  // Cria o usuário usando Better Auth
+  const result = await auth.api.createUser({
+    body: {
+      email,
+      password,
       name,
-      description: PERMISSION_DESCRIPTIONS[name],
-      resource,
-      action,
-    };
-  });
-
-  for (const permissionData of permissionsData) {
-    await prisma.permission.create({
-      data: permissionData,
-    });
-  }
-
-  console.log(`✅ Created ${permissionsData.length} permissions`);
-}
-
-async function createRoles() {
-  console.log("📝 Creating roles...");
-
-  const rolesData = Object.values(ROLES).map((name) => ({
-    name,
-    description: ROLE_DESCRIPTIONS[name],
-  }));
-
-  for (const roleData of rolesData) {
-    await prisma.role.create({
-      data: roleData,
-    });
-  }
-
-  console.log(`✅ Created ${rolesData.length} roles`);
-}
-
-async function createRolePermissions() {
-  console.log("🔗 Creating role-permission mappings...");
-
-  const roles = await prisma.role.findMany();
-  const permissions = await prisma.permission.findMany();
-
-  const permissionMap = new Map(permissions.map((p) => [p.name, p.id]));
-
-  let rolePermissionCount = 0;
-
-  for (const role of roles) {
-    const rolePermissions = ROLE_PERMISSIONS[role.name] || [];
-
-    for (const permissionName of rolePermissions) {
-      const permissionId = permissionMap.get(permissionName);
-
-      if (permissionId) {
-        await prisma.rolePermission.create({
-          data: {
-            roleId: role.id,
-            permissionId,
-          },
-        });
-        rolePermissionCount++;
-      }
-    }
-  }
-
-  console.log(`✅ Created ${rolePermissionCount} role-permission mappings`);
-}
-
-async function createUser(data: {
-  email: string;
-  name?: string;
-  emailVerified?: boolean;
-  image?: string;
-}) {
-  const user = await prisma.user.create({
-    data: {
-      email: data.email,
-      name: data.name,
-      emailVerified: data.emailVerified ?? false,
-      image: data.image,
     },
   });
 
-  return user;
-}
-
-async function createSuperAdmin(data: {
-  email: string;
-  name?: string;
-  emailVerified?: boolean;
-  image?: string;
-}) {
-  console.log("👤 Creating superadmin user...");
-
-  const superAdminRole = await prisma.role.findUnique({
-    where: { name: ROLES.SUPERADMIN },
-  });
-
-  if (!superAdminRole) {
-    throw new Error(
-      "Superadmin role not found. Make sure roles are created first."
-    );
+  if (!result?.user) {
+    throw new Error(`Falha ao criar usuário: ${email}`);
   }
 
-  const user = await createUser({
-    email: data.email,
-    name: data.name,
-    emailVerified: data.emailVerified ?? true,
-    image: data.image,
-  });
+  const user = result.user;
 
-  await prisma.userRole.create({
+  // Atualiza campos adicionais
+  await prisma.user.update({
+    where: { id: user.id },
     data: {
-      userId: user.id,
-      roleId: superAdminRole.id,
+      emailVerified,
+      ...(role && { role }),
     },
   });
 
-  console.log(`✅ Created superadmin user: ${user.email}`);
+  console.log(`✅ Usuário criado: ${user.email}${role ? ` (${role})` : ""}`);
 
   return user;
 }
 
 async function main() {
-  console.log("🌱 Starting seed...");
+  console.log("🌱 Iniciando seed...\n");
 
-  try {
-    await cleanDatabase();
-    await createPermissions();
-    await createRoles();
-    await createRolePermissions();
-    await createSuperAdmin({
-      email: "admin@evolue.com",
-      name: "Super Admin",
-      emailVerified: true,
-    });
+  // Limpa o banco de dados
+  await cleanDatabase();
+  console.log("");
 
-    console.log("🎉 Seed completed successfully!");
-  } catch (error) {
-    console.error("❌ Error during seed:", error);
-    throw error;
-  }
+  // Cria o usuário admin do sistema
+  await createUser({
+    email: "admin@example.com",
+    password: "Teste123@",
+    name: "Admin",
+    role: ROLES.SUPERADMIN,
+    emailVerified: true,
+  });
+
+  console.log("\n✅ Seed concluído com sucesso!");
+  console.log("\n📋 Credenciais de acesso:");
+  console.log("   Email: admin@example.com");
+  console.log("   Senha: Teste123@");
+  console.log("   Role: superadmin");
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Fatal error:", e);
+    console.error("❌ Erro ao executar seed:", e);
     process.exit(1);
   })
   .finally(async () => {

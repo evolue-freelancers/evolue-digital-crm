@@ -1,6 +1,5 @@
-import type { PermissionName } from "@/constants/permissions";
-import { ROLE_PERMISSIONS } from "@/constants/permissions";
 import type { RoleName } from "@/constants/roles";
+import { ROLES } from "@/constants/roles";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -10,28 +9,49 @@ export async function getSession() {
   });
 }
 
+/**
+ * Obtém todas as roles de um usuário
+ * - Se for superadmin: retorna apenas ["superadmin"]
+ * - Se não for superadmin: retorna roles de todos os tenants que o usuário pertence
+ */
 export async function getUserRoles(userId: string): Promise<RoleName[]> {
-  const userRoles = await prisma.userRole.findMany({
-    where: { userId },
-    include: { role: true },
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
   });
 
-  return userRoles.map((ur) => ur.role.name as RoleName);
-}
-
-export async function getUserPermissions(
-  userId: string
-): Promise<PermissionName[]> {
-  const userRoles = await getUserRoles(userId);
-
-  const permissions = new Set<PermissionName>();
-
-  for (const role of userRoles) {
-    const rolePermissions = ROLE_PERMISSIONS[role] || [];
-    rolePermissions.forEach((permission) => permissions.add(permission));
+  // Se for superadmin, retorna apenas superadmin
+  if (user?.role === ROLES.SUPERADMIN) {
+    return [ROLES.SUPERADMIN];
   }
 
-  return Array.from(permissions);
+  // Caso contrário, retorna roles de todos os tenants
+  const tenantMembers = await prisma.tenantMember.findMany({
+    where: { userId },
+    select: { role: true },
+  });
+
+  return tenantMembers.map((tm) => tm.role as RoleName);
+}
+
+/**
+ * Obtém roles de um usuário em um tenant específico
+ */
+export async function getUserTenantRole(
+  userId: string,
+  tenantId: string
+): Promise<RoleName | null> {
+  const member = await prisma.tenantMember.findUnique({
+    where: {
+      tenantId_userId: {
+        tenantId,
+        userId,
+      },
+    },
+    select: { role: true },
+  });
+
+  return (member?.role as RoleName) || null;
 }
 
 export async function hasRole(
@@ -42,12 +62,16 @@ export async function hasRole(
   return userRoles.includes(role);
 }
 
-export async function hasPermission(
+/**
+ * Verifica se o usuário tem uma role específica em um tenant
+ */
+export async function hasTenantRole(
   userId: string,
-  permission: PermissionName
+  tenantId: string,
+  role: RoleName
 ): Promise<boolean> {
-  const userPermissions = await getUserPermissions(userId);
-  return userPermissions.includes(permission);
+  const userRole = await getUserTenantRole(userId, tenantId);
+  return userRole === role;
 }
 
 export async function hasAnyRole(
@@ -56,12 +80,4 @@ export async function hasAnyRole(
 ): Promise<boolean> {
   const userRoles = await getUserRoles(userId);
   return roles.some((role) => userRoles.includes(role));
-}
-
-export async function hasAnyPermission(
-  userId: string,
-  permissions: PermissionName[]
-): Promise<boolean> {
-  const userPermissions = await getUserPermissions(userId);
-  return permissions.some((permission) => userPermissions.includes(permission));
 }

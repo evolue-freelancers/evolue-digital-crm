@@ -1,9 +1,11 @@
 "use client";
 
+import { adminClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
+// Usa URL relativa para evitar problemas de CORS
+// O Better Auth detecta automaticamente a URL base da aplicação
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  basePath: "/api/auth",
+  plugins: [adminClient()],
 });
-
-export type AuthClient = typeof authClient;

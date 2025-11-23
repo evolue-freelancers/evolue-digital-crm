@@ -13,115 +13,117 @@ datasource db {
   provider = "postgresql"
 }
 
-// Better Auth tables
 model User {
-  id            String   @id @default(uuid()) @db.Uuid
-  name          String?
-  email         String   @unique
-  emailVerified Boolean  @default(false)
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String
+  email         String
+  emailVerified Boolean        @default(false) @map("email_verified")
   image         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
+  role          String?
+  banned        Boolean?       @default(false)
+  banReason     String?        @map("ban_reason")
+  banExpires    DateTime?      @map("ban_expires")
+  sessions      Session[]
+  accounts      Account[]
+  tenantMembers TenantMember[]
 
-  // Better Auth relations
-  accounts Account[]
-  sessions Session[]
-
-  // Roles and Permissions
-  userRoles UserRole[]
-
-  @@map("users")
-}
-
-model Account {
-  id                String  @id @default(uuid()) @db.Uuid
-  userId            String  @db.Uuid
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
+  @@unique([email])
+  @@map("user")
 }
 
 model Session {
-  id           String   @id @default(uuid()) @db.Uuid
-  sessionToken String   @unique
-  userId       String   @db.Uuid
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String   @id @default(uuid()) @db.Uuid
+  expiresAt      DateTime @map("expires_at")
+  token          String
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  userId         String   @map("user_id") @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  impersonatedBy String?  @map("impersonated_by")
 
-  @@map("sessions")
+  @@unique([token])
+  @@map("session")
 }
 
-model VerificationToken {
+model Account {
+  id                    String    @id @default(uuid()) @db.Uuid
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id") @db.Uuid
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(uuid()) @db.Uuid
   identifier String
-  token      String   @unique
-  expires    DateTime
+  value      String
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
 
-  @@unique([identifier, token])
-  @@map("verification_tokens")
+  @@map("verification")
 }
 
-// Roles and Permissions System
-model Role {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Tenant {
+  id        String         @id @default(uuid()) @db.Uuid
+  slug      String
+  name      String
+  status    TenantStatus   @default(TRIAL)
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+  domains   Domain[]
+  members   TenantMember[]
 
-  userRoles       UserRole[]
-  rolePermissions RolePermission[]
-
-  @@map("roles")
+  @@unique([slug])
+  @@map("tenant")
 }
 
-model Permission {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique
-  description String?
-  resource    String? // e.g., "tenant", "user", "settings"
-  action      String? // e.g., "create", "read", "update", "delete"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  rolePermissions RolePermission[]
-
-  @@map("permissions")
-}
-
-model UserRole {
+model Domain {
   id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  roleId    String   @db.Uuid
-  createdAt DateTime @default(now())
+  hostname  String
+  tenantId  String   @map("tenant_id") @db.Uuid
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, roleId])
-  @@map("user_roles")
+  @@unique([hostname])
+  @@map("domain")
 }
 
-model RolePermission {
-  id           String   @id @default(uuid()) @db.Uuid
-  roleId       String   @db.Uuid
-  permissionId String   @db.Uuid
-  createdAt    DateTime @default(now())
+model TenantMember {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  role      String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@unique([tenantId, userId])
+  @@map("tenant_member")
+}
 
-  @@unique([roleId, permissionId])
-  @@map("role_permissions")
+enum TenantStatus {
+  ACTIVE
+  TRIAL
+  SUSPENDED
+  INACTIVE
+
+  @@map("tenant_status")
 }

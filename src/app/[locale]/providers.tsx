@@ -21,7 +21,7 @@ export function Providers({ children }: ProvidersProps) {
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
         <NuqsAdapter>
-          <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+          <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
             {children}
             <Toaster richColors position="bottom-right" />
           </ThemeProvider>

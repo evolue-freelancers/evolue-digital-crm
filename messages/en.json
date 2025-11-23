@@ -26,10 +26,64 @@
   "auth": {
     "login": "Login",
     "logout": "Logout",
-    "register": "Register",
     "email": "Email",
     "password": "Password",
     "forgotPassword": "Forgot password?",
-    "rememberMe": "Remember me"
+    "rememberMe": "Remember me",
+    "confirmPassword": "Confirm password",
+    "resetPassword": "Reset password",
+    "sendResetLink": "Send reset link",
+    "backToLogin": "Back to login"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome to dashboard"
+  },
+  "errors": {
+    "tenantNotFound": {
+      "title": "Tenant not found",
+      "message": "The tenant you are trying to access does not exist or has been removed.",
+      "contactSupport": "Contact support if you believe this is an error."
+    },
+    "tenantSuspended": {
+      "title": "Tenant suspended",
+      "message": "This tenant is temporarily suspended. Contact support for more information.",
+      "contactSupport": "Contact support"
+    },
+    "unauthorized": {
+      "title": "Access denied",
+      "message": "You do not have permission to access this tenant.",
+      "logout": "Logout",
+      "goBack": "Go back"
+    }
+  },
+  "partners": {
+    "title": "Partners",
+    "description": "Manage all system tenants",
+    "createTenant": "Create Tenant",
+    "searchPlaceholder": "Search tenants...",
+    "loading": "Loading...",
+    "name": "Name",
+    "slug": "Slug",
+    "status": "Status",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "role": "Role",
+    "cancel": "Cancel",
+    "create": "Create",
+    "creating": "Creating...",
+    "createTenantTitle": "Create New Tenant",
+    "createTenantDescription": "Fill in the data to create a new tenant in the system.",
+    "createUserTitle": "Add User to Tenant",
+    "createUserDescription": "Create a new user and add them as a member of this tenant.",
+    "namePlaceholder": "Tenant name",
+    "slugPlaceholder": "tenant-slug",
+    "selectStatus": "Select status",
+    "emailPlaceholder": "user@example.com",
+    "passwordPlaceholder": "User password",
+    "confirmPasswordPlaceholder": "Confirm password",
+    "generatePassword": "Generate random password",
+    "selectRole": "Select role"
   }
 }
