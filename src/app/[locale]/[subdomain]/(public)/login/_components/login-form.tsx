@@ -2,9 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 
@@ -29,8 +27,6 @@ type LoginFormValues = {
 export function LoginForm() {
   const t = useTranslations("auth");
   const tCommon = useTranslations("common");
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -41,27 +37,16 @@ export function LoginForm() {
   });
 
   const onSubmit = async (data: LoginFormValues) => {
-    setIsLoading(true);
     try {
-      const result = await authClient.signIn.email({
+      await authClient.signIn.email({
         email: data.email,
         password: data.password,
+        callbackURL: "/dashboard",
       });
-
-      if (result.error) {
-        toast.error(result.error.message || "Erro ao fazer login");
-        return;
-      }
-
-      toast.success("Login realizado com sucesso!");
-      router.push("/dashboard");
-      router.refresh();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Erro ao fazer login"
       );
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -105,8 +90,12 @@ export function LoginForm() {
           </Link>
         </div>
 
-        <Button type="submit" disabled={isLoading} className="w-full">
-          {isLoading ? tCommon("loading") : t("login")}
+        <Button
+          type="submit"
+          disabled={form.formState.isSubmitting}
+          className="w-full"
+        >
+          {form.formState.isSubmitting ? tCommon("loading") : t("login")}
         </Button>
       </form>
     </Form>

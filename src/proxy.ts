@@ -25,12 +25,6 @@ function extractSubdomain(request: NextRequest): string | null {
     return null;
   }
 
-  // Local development environment - suporta lvh.me
-  if (hostname.includes(".lvh.me")) {
-    const subdomain = hostname.split(".")[0];
-    return subdomain || null;
-  }
-
   // Production environment
   const rootDomainFormatted = rootDomain.split(":")[0];
 
@@ -57,24 +51,9 @@ export default async function proxy(request: NextRequest) {
 
   // Se tem subdomínio
   if (subdomain) {
-    // Se está na raiz (/) e tem subdomínio, faz rewrite para /[subdomain]/
-    if (pathname === "/") {
-      const url = request.nextUrl.clone();
-      url.pathname = `/${subdomain}`;
-
-      // Cria uma nova requisição com o pathname modificado
-      const modifiedRequest = new NextRequest(url, {
-        headers: request.headers,
-        method: request.method,
-      });
-
-      // Processa com next-intl
-      const response = intlMiddleware(modifiedRequest);
-
-      if (response instanceof NextResponse) {
-        response.headers.set("x-subdomain", subdomain);
-        return response;
-      }
+    // Bloqueia acesso à página admin a partir de subdomínios
+    if (pathname.startsWith("/admin")) {
+      return NextResponse.redirect(new URL("/", request.url));
     }
 
     // Se já está na rota do subdomínio ou em outra rota, processa normalmente
