@@ -1,7 +1,10 @@
-// import { NextRequest, NextResponse } from "next/server";
-// import createIntlMiddleware from "next-intl/middleware";
+import {
+  NextRequest,
+  // NextResponse
+} from "next/server";
+import createIntlMiddleware from "next-intl/middleware";
 
-// import { routing } from "./i18n/routing";
+import { routing } from "./i18n/routing";
 // import {
 //   getBaseDomain,
 //   normalizeHost,
@@ -9,10 +12,9 @@
 //   validateTenantResolution,
 // } from "./lib/tenant-resolver";
 
-// const intlMiddleware = createIntlMiddleware(routing);
+const intlMiddleware = createIntlMiddleware(routing);
 
-export default async function proxy() {
-// request: NextRequest
+export default async function proxy(request: NextRequest) {
   // const headers = request.headers;
   // const hostname = normalizeHost(headers);
   // const baseDomain = getBaseDomain();
@@ -36,7 +38,7 @@ export default async function proxy() {
   //   }
   // }
   // // Add tenant headers for downstream use
-  // const response = intlMiddleware(request);
+  const response = intlMiddleware(request);
   // if (response instanceof NextResponse) {
   //   // Add tenant context headers
   //   if (tenantResult.tenantId) {
@@ -45,7 +47,7 @@ export default async function proxy() {
   //   response.headers.set("x-tenant-mode", tenantResult.mode);
   //   return response;
   // }
-  // return response;
+  return response;
 }
 
 export const config = {
