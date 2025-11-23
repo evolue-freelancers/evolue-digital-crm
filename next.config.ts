@@ -5,9 +5,7 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
   // Garantir que o Prisma Client seja incluído no build
-  experimental: {
-    serverComponentsExternalPackages: ["@prisma/client", "@prisma/adapter-pg"],
-  },
+  serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg"],
   // Headers de segurança
   async headers() {
     return [
