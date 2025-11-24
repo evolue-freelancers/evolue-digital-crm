@@ -1,15 +1,14 @@
+import { headers } from "next/headers";
 import { getTranslations } from "next-intl/server";
 
 import { LanguageSwitcher } from "@/components/language-switcher";
 
-export default async function HomePage({
-  params,
-}: {
-  params: Promise<{ subdomain: string }>;
-}) {
-  const { subdomain } = await params;
+export default async function HomePage() {
   const t = await getTranslations("home");
   const tCommon = await getTranslations("common");
+
+  const h = await headers();
+  const subdomain = h.get("x-subdomain");
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-24">

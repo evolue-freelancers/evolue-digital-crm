@@ -1,3 +1,4 @@
+// src/proxy.ts
 import { NextRequest, NextResponse } from "next/server";
 import createIntlMiddleware from "next-intl/middleware";
 
@@ -11,15 +12,15 @@ function extractSubdomain(request: NextRequest): string | null {
   const host = request.headers.get("host") || "";
   const hostname = host.split(":")[0];
 
-  // Local development environment
+  // Ambiente de desenvolvimento local
   if (url.includes("localhost") || url.includes("127.0.0.1")) {
-    // Try to extract subdomain from the full URL
+    // Tenta extrair subdomínio da URL completa (ex: http://crm.localhost:3000)
     const fullUrlMatch = url.match(/http:\/\/([^.]+)\.localhost/);
     if (fullUrlMatch && fullUrlMatch[1]) {
       return fullUrlMatch[1];
     }
 
-    // Fallback to host header approach
+    // Fallback: host header (ex: crm.localhost:3000)
     if (hostname.includes(".localhost")) {
       return hostname.split(".")[0];
     }
@@ -27,16 +28,16 @@ function extractSubdomain(request: NextRequest): string | null {
     return null;
   }
 
-  // Production environment
+  // Produção
   const rootDomainFormatted = rootDomain.split(":")[0];
 
-  // Handle preview deployment URLs (tenant---branch-name.vercel.app)
+  // URLs de preview da Vercel: tenant---branch-name.vercel.app
   if (hostname.includes("---") && hostname.endsWith(".vercel.app")) {
     const parts = hostname.split("---");
     return parts.length > 0 ? parts[0] : null;
   }
 
-  // Regular subdomain detection
+  // Subdomínio normal: crm.claudiolibanez.com.br
   const isSubdomain =
     hostname !== rootDomainFormatted &&
     hostname !== `www.${rootDomainFormatted}` &&
@@ -51,7 +52,7 @@ export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const subdomain = extractSubdomain(request);
 
-  // Resolve o tenant baseado no subdomain
+  // Resolve o tenant baseado no subdomínio
   const { tenantId, tenantMode } = await resolveTenant(subdomain);
 
   // Valida acesso do usuário ao tenant para rotas protegidas
@@ -80,50 +81,19 @@ export default async function proxy(request: NextRequest) {
     console.error("Erro ao validar acesso ao tenant:", error);
   }
 
-  // Se tem subdomínio
-  if (subdomain) {
-    // Bloqueia acesso à página admin a partir de subdomínios
-    if (pathname.startsWith("/admin")) {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
-
-    // Se já está na rota do subdomínio ou em outra rota, processa normalmente
-    // mas garante que o subdomínio está no pathname se necessário
-    if (!pathname.startsWith(`/${subdomain}`)) {
-      const url = request.nextUrl.clone();
-      url.pathname = `/${subdomain}${pathname}`;
-
-      const modifiedRequest = new NextRequest(url, {
-        headers: request.headers,
-        method: request.method,
-      });
-
-      // Define headers para o contexto do tRPC
-      modifiedRequest.headers.set("x-subdomain", subdomain);
-      if (tenantId) {
-        modifiedRequest.headers.set("x-tenant-id", tenantId);
-      }
-      modifiedRequest.headers.set("x-tenant-mode", tenantMode);
-
-      const response = intlMiddleware(modifiedRequest);
-
-      if (response instanceof NextResponse) {
-        response.headers.set("x-subdomain", subdomain);
-        if (tenantId) {
-          response.headers.set("x-tenant-id", tenantId);
-        }
-        response.headers.set("x-tenant-mode", tenantMode);
-        return response;
-      }
-    }
+  // Se tem subdomínio, bloqueia acesso à página admin a partir de subdomínios
+  if (subdomain && pathname.startsWith("/admin")) {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // Sem subdomínio ou já processado, processa normalmente
-  const modifiedRequest = new NextRequest(request.url, {
+  // NÃO altera o pathname (sem /${subdomain} no caminho)
+  const url = request.nextUrl.clone();
+  const modifiedRequest = new NextRequest(url, {
     headers: request.headers,
     method: request.method,
   });
 
+  // Define headers para o contexto do tRPC / tenant
   modifiedRequest.headers.set("x-tenant-mode", tenantMode);
   if (tenantId) {
     modifiedRequest.headers.set("x-tenant-id", tenantId);
@@ -135,13 +105,13 @@ export default async function proxy(request: NextRequest) {
   const response = intlMiddleware(modifiedRequest);
 
   if (response instanceof NextResponse) {
-    if (subdomain) {
-      response.headers.set("x-subdomain", subdomain);
-    }
+    response.headers.set("x-tenant-mode", tenantMode);
     if (tenantId) {
       response.headers.set("x-tenant-id", tenantId);
     }
-    response.headers.set("x-tenant-mode", tenantMode);
+    if (subdomain) {
+      response.headers.set("x-subdomain", subdomain);
+    }
     return response;
   }
 
@@ -149,8 +119,8 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Match all pathnames except for
-  // - … if they start with `/api`, `/trpc`, `/_next` or `/_vercel`
-  // - … the ones containing a dot (e.g. `favicon.ico`)
+  // Match all pathnames exceto:
+  // - se começam com `/api`, `/trpc`, `/_next` ou `/_vercel`
+  // - ou se contêm um ponto (ex: `favicon.ico`)
   matcher: "/((?!api|trpc|_next|_vercel|.*\\..*).*)",
 };

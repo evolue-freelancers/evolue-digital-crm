@@ -8,25 +8,10 @@ import { cn, rootDomain, rootDomainDescription } from "@/lib/utils";
 
 import { Providers } from "./providers";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ subdomain: string }>;
-}): Promise<Metadata> {
-  const { subdomain } = await params;
-
-  if (!subdomain) {
-    return {
-      title: rootDomain,
-      description: rootDomainDescription,
-    };
-  }
-
-  return {
-    title: `${subdomain}.${rootDomain}`,
-    description: `Subdomain page for ${subdomain}.${rootDomain}`,
-  };
-}
+export const metadata: Metadata = {
+  title: rootDomain,
+  description: rootDomainDescription,
+};
 
 export default async function RootLayout({
   children,
