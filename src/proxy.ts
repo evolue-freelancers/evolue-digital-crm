@@ -7,121 +7,84 @@ import { auth } from "@/lib/auth";
 import { resolveTenant, validateTenantAccess } from "@/lib/tenant-resolver";
 import { rootDomain } from "@/lib/utils";
 
+/** Extrai o subdomínio atual */
 function extractSubdomain(request: NextRequest): string | null {
-  const url = request.url;
   const host = request.headers.get("host") || "";
   const hostname = host.split(":")[0];
+  const root = rootDomain.split(":")[0];
 
-  // Ambiente de desenvolvimento local
-  if (url.includes("localhost") || url.includes("127.0.0.1")) {
-    // Tenta extrair subdomínio da URL completa (ex: http://crm.localhost:3000)
-    const fullUrlMatch = url.match(/http:\/\/([^.]+)\.localhost/);
-    if (fullUrlMatch && fullUrlMatch[1]) {
-      return fullUrlMatch[1];
-    }
-
-    // Fallback: host header (ex: crm.localhost:3000)
-    if (hostname.includes(".localhost")) {
-      return hostname.split(".")[0];
-    }
-
-    return null;
+  // Localhost: crm.localhost:3000
+  if (hostname.includes(".localhost")) {
+    return hostname.split(".")[0];
   }
 
-  // Produção
-  const rootDomainFormatted = rootDomain.split(":")[0];
-
-  // URLs de preview da Vercel: tenant---branch-name.vercel.app
+  // Preview Vercel: crm---main.vercel.app
   if (hostname.includes("---") && hostname.endsWith(".vercel.app")) {
-    const parts = hostname.split("---");
-    return parts.length > 0 ? parts[0] : null;
+    return hostname.split("---")[0];
   }
 
-  // Subdomínio normal: crm.claudiolibanez.com.br
+  // Produção: crm.meudominio.com
   const isSubdomain =
-    hostname !== rootDomainFormatted &&
-    hostname !== `www.${rootDomainFormatted}` &&
-    hostname.endsWith(`.${rootDomainFormatted}`);
+    hostname !== root &&
+    hostname !== `www.${root}` &&
+    hostname.endsWith(`.${root}`);
 
-  return isSubdomain ? hostname.replace(`.${rootDomainFormatted}`, "") : null;
+  return isSubdomain ? hostname.replace(`.${root}`, "") : null;
 }
 
 const intlMiddleware = createIntlMiddleware(routing);
 
 export default async function proxy(request: NextRequest) {
-  const originalPathname = request.nextUrl.pathname; // ex: "/", "/login", "/dashboard"
+  const pathname = request.nextUrl.pathname;
   const subdomain = extractSubdomain(request);
 
-  // Resolve o tenant baseado no subdomínio
+  // Resolve tenant do subdomínio
   const { tenantId, tenantMode } = await resolveTenant(subdomain);
 
-  // Valida acesso do usuário ao tenant para rotas protegidas
+  // ---------- AUTENTICAÇÃO & PERMISSÃO ----------
   try {
-    const session = await auth.api
-      .getSession({
-        headers: request.headers,
-      })
-      .catch(() => null);
+    const session = await auth.api.getSession({
+      headers: request.headers,
+    });
 
     const userId = session?.user?.id ?? null;
-    const hasAccess = await validateTenantAccess(
+
+    const allowed = await validateTenantAccess(
       tenantId,
       tenantMode,
       userId,
-      originalPathname
+      pathname
     );
 
-    if (!hasAccess) {
-      // Usuário não tem acesso ao tenant, redireciona para login
-      const loginUrl = new URL("/login", request.url);
-      return NextResponse.redirect(loginUrl);
+    if (!allowed) {
+      return NextResponse.redirect(new URL("/login", request.url));
     }
-  } catch (error) {
-    // Em caso de erro, permite continuar (será validado no layout protegido)
-    console.error("Erro ao validar acesso ao tenant:", error);
+  } catch (err) {
+    console.error("Erro validando tenant:", err);
   }
 
-  // Se tem subdomínio, bloqueia acesso à página admin a partir de subdomínios
-  if (subdomain && originalPathname.startsWith("/admin")) {
+  // ---------- BLOQUEIA ROTAS DE ADMIN NO TENANT ----------
+  if (subdomain && pathname.startsWith("/admin")) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // NÃO reescreve o pathname: "/" continua sendo "/"
-  const url = request.nextUrl.clone();
-  const modifiedRequest = new NextRequest(url, {
-    headers: request.headers,
-    method: request.method,
-  });
+  // NÃO MODIFICA O PATH — mantém URLs limpas
+  // ex: /login continua /login
+  // ex: /dashboard continua /dashboard
 
-  // Define headers para o contexto do tRPC / tenant
-  modifiedRequest.headers.set("x-tenant-mode", tenantMode);
-  if (tenantId) {
-    modifiedRequest.headers.set("x-tenant-id", tenantId);
-  }
-  if (subdomain) {
-    modifiedRequest.headers.set("x-subdomain", subdomain);
-  }
+  const response = intlMiddleware(request);
 
-  // Delega para o next-intl (que vai cuidar do [locale])
-  const response = intlMiddleware(modifiedRequest);
-
+  // ---------- Injeta headers do tenant ----------
   if (response instanceof NextResponse) {
     response.headers.set("x-tenant-mode", tenantMode);
-    if (tenantId) {
-      response.headers.set("x-tenant-id", tenantId);
-    }
-    if (subdomain) {
-      response.headers.set("x-subdomain", subdomain);
-    }
-    return response;
+
+    if (tenantId) response.headers.set("x-tenant-id", tenantId);
+    if (subdomain) response.headers.set("x-subdomain", subdomain);
   }
 
   return response;
 }
 
 export const config = {
-  // Match all pathnames exceto:
-  // - se começam com `/api`, `/trpc`, `/_next` ou `/_vercel`
-  // - ou se contêm um ponto (ex: `favicon.ico`)
   matcher: "/((?!api|trpc|_next|_vercel|.*\\..*).*)",
 };
