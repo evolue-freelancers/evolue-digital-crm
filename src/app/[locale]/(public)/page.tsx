@@ -1,13 +1,13 @@
 import { getTranslations } from "next-intl/server";
 
 import { LanguageSwitcher } from "@/components/language-switcher";
-import { resolveSubdomain } from "@/lib/resolve-subdomain";
+import { resolveSubdomainFromHeaders } from "@/lib/resolve-subdomain-from-headers";
 
 export default async function HomePage() {
   const t = await getTranslations("home");
   const tCommon = await getTranslations("common");
 
-  const subdomain = await resolveSubdomain();
+  const subdomain = await resolveSubdomainFromHeaders();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-24">
