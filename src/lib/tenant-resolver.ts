@@ -65,6 +65,7 @@ export function validateTenant(
  */
 function isPublicRoute(pathname: string): boolean {
   return (
+    pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/forgot-password") ||
     pathname.startsWith("/reset-password")

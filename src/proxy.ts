@@ -56,7 +56,7 @@ export default async function proxy(request: NextRequest) {
       pathname
     );
 
-    if (!allowed) {
+    if (!allowed && pathname !== "/") {
       return NextResponse.redirect(new URL("/login", request.url));
     }
   } catch (err) {
