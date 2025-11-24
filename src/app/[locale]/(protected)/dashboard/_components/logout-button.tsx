@@ -12,14 +12,9 @@ export function LogoutButton() {
 
   const handleLogout = async () => {
     try {
-      await authClient.signOut({
-        fetchOptions: {
-          onSuccess: () => {
-            router.push("/login");
-            router.refresh();
-          },
-        },
-      });
+      await authClient.signOut();
+      router.push("/login");
+      router.refresh();
     } catch (error) {
       console.error("Error logging out:", error);
       // Mesmo em caso de erro, redireciona para login
