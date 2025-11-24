@@ -48,21 +48,8 @@ function extractSubdomain(request: NextRequest): string | null {
 
 const intlMiddleware = createIntlMiddleware(routing);
 
-/**
- * Constrói o pathname interno para tenants.
- *
- * Externo (usuário):   /login
- * Subdomínio "crm":    /crm/login
- * Isso casa com app/[locale]/[domain]/...
- */
-function buildTenantPathname(pathname: string, subdomain: string): string {
-  const cleanPath = pathname === "/" ? "" : pathname; // "/" -> ""
-  return `/${subdomain}${cleanPath}`;
-}
-
 export default async function proxy(request: NextRequest) {
-  const originalUrl = request.nextUrl.clone();
-  const originalPathname = originalUrl.pathname; // ex: "/", "/login", "/dashboard"
+  const originalPathname = request.nextUrl.pathname; // ex: "/", "/login", "/dashboard"
   const subdomain = extractSubdomain(request);
 
   // Resolve o tenant baseado no subdomínio
@@ -99,28 +86,12 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // Clona a URL para poder reescrever internamente
+  // NÃO reescreve mais o pathname: "/" continua sendo "/"
   const url = request.nextUrl.clone();
-
-  // Request que vamos mandar pro next-intl
-  let modifiedRequest: NextRequest;
-
-  if (subdomain) {
-    // 🔥 Caso TENANT: reescreve internamente o pathname para incluir o [domain]
-    // Ex: /login -> /crm/login
-    url.pathname = buildTenantPathname(originalPathname, subdomain);
-
-    modifiedRequest = new NextRequest(url, {
-      headers: request.headers,
-      method: request.method,
-    });
-  } else {
-    // Caso plataforma (sem subdomínio): mantém o pathname original
-    modifiedRequest = new NextRequest(url, {
-      headers: request.headers,
-      method: request.method,
-    });
-  }
+  const modifiedRequest = new NextRequest(url, {
+    headers: request.headers,
+    method: request.method,
+  });
 
   // Define headers para o contexto do tRPC / tenant
   modifiedRequest.headers.set("x-tenant-mode", tenantMode);
