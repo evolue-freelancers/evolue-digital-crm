@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import createIntlMiddleware from "next-intl/middleware";
 
-import { routing } from "./i18n/routing";
-import { rootDomain } from "./lib/utils";
+import { routing } from "@/i18n/routing";
+import { auth } from "@/lib/auth";
+import { resolveTenant, validateTenantAccess } from "@/lib/tenant-resolver";
+import { rootDomain } from "@/lib/utils";
 
 function extractSubdomain(request: NextRequest): string | null {
   const url = request.url;
@@ -49,6 +51,35 @@ export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const subdomain = extractSubdomain(request);
 
+  // Resolve o tenant baseado no subdomain
+  const { tenantId, tenantMode } = await resolveTenant(subdomain);
+
+  // Valida acesso do usuário ao tenant para rotas protegidas
+  try {
+    const session = await auth.api
+      .getSession({
+        headers: request.headers,
+      })
+      .catch(() => null);
+
+    const userId = session?.user?.id ?? null;
+    const hasAccess = await validateTenantAccess(
+      tenantId,
+      tenantMode,
+      userId,
+      pathname
+    );
+
+    if (!hasAccess) {
+      // Usuário não tem acesso ao tenant, redireciona para login
+      const loginUrl = new URL("/login", request.url);
+      return NextResponse.redirect(loginUrl);
+    }
+  } catch (error) {
+    // Em caso de erro, permite continuar (será validado no layout protegido)
+    console.error("Erro ao validar acesso ao tenant:", error);
+  }
+
   // Se tem subdomínio
   if (subdomain) {
     // Bloqueia acesso à página admin a partir de subdomínios
@@ -67,22 +98,50 @@ export default async function proxy(request: NextRequest) {
         method: request.method,
       });
 
+      // Define headers para o contexto do tRPC
+      modifiedRequest.headers.set("x-subdomain", subdomain);
+      if (tenantId) {
+        modifiedRequest.headers.set("x-tenant-id", tenantId);
+      }
+      modifiedRequest.headers.set("x-tenant-mode", tenantMode);
+
       const response = intlMiddleware(modifiedRequest);
 
       if (response instanceof NextResponse) {
         response.headers.set("x-subdomain", subdomain);
+        if (tenantId) {
+          response.headers.set("x-tenant-id", tenantId);
+        }
+        response.headers.set("x-tenant-mode", tenantMode);
         return response;
       }
     }
   }
 
   // Sem subdomínio ou já processado, processa normalmente
-  const response = intlMiddleware(request);
+  const modifiedRequest = new NextRequest(request.url, {
+    headers: request.headers,
+    method: request.method,
+  });
+
+  modifiedRequest.headers.set("x-tenant-mode", tenantMode);
+  if (tenantId) {
+    modifiedRequest.headers.set("x-tenant-id", tenantId);
+  }
+  if (subdomain) {
+    modifiedRequest.headers.set("x-subdomain", subdomain);
+  }
+
+  const response = intlMiddleware(modifiedRequest);
 
   if (response instanceof NextResponse) {
     if (subdomain) {
       response.headers.set("x-subdomain", subdomain);
     }
+    if (tenantId) {
+      response.headers.set("x-tenant-id", tenantId);
+    }
+    response.headers.set("x-tenant-mode", tenantMode);
     return response;
   }
 

@@ -39,14 +39,9 @@ export const platformRouter = router({
           status: z
             .enum(["ACTIVE", "TRIAL", "SUSPENDED", "INACTIVE"])
             .default("TRIAL"),
-          email: z.string().email(),
-          password: z.string().min(6),
         })
       )
       .mutation(async ({ ctx, input }) => {
-        const { auth } = await import("@/lib/auth");
-        const { ROLES } = await import("@/constants/roles");
-
         // Cria o tenant
         const tenant = await ctx.prisma.tenant.create({
           data: {
@@ -63,40 +58,6 @@ export const platformRouter = router({
           data: {
             tenantId: tenant.id,
             hostname: `${input.slug}.${baseDomain}`,
-          },
-        });
-
-        // Cria o usuário usando Better Auth
-        const userResult = await auth.api.createUser({
-          body: {
-            email: input.email,
-            password: input.password,
-            name: input.name,
-          },
-        });
-
-        if (!userResult?.user) {
-          // Se falhar ao criar usuário, remove o tenant criado
-          await ctx.prisma.tenant.delete({ where: { id: tenant.id } });
-          throw new Error("Falha ao criar usuário");
-        }
-
-        const user = userResult.user;
-
-        // Atualiza o usuário para ter email verificado
-        await ctx.prisma.user.update({
-          where: { id: user.id },
-          data: {
-            emailVerified: true,
-          },
-        });
-
-        // Cria o TenantMember com role ADMIN
-        await ctx.prisma.tenantMember.create({
-          data: {
-            tenantId: tenant.id,
-            userId: user.id,
-            role: ROLES.ADMIN,
           },
         });
 
@@ -364,6 +325,7 @@ export const platformRouter = router({
         await ctx.prisma.user.update({
           where: { id: user.id },
           data: {
+            role: input.role,
             emailVerified: input.emailVerified,
           },
         });

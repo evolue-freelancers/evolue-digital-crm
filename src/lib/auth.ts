@@ -4,7 +4,7 @@ import { admin } from "better-auth/plugins";
 
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/send";
-import { getBaseDomain } from "@/lib/tenant-resolver";
+import { getBaseDomain } from "@/lib/utils";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {

@@ -1,148 +1,61 @@
 import { prisma } from "@/lib/prisma";
+
 import type {
   TenantResolutionError,
   TenantResolutionResult,
-} from "@/lib/tenant-context";
+} from "./tenant-context";
+import { adminSubdomain } from "./utils";
 
 /**
- * Obtém o domínio base da aplicação
- * Em desenvolvimento, suporta *.lvh.me:3000
- * Em produção, usa NEXT_PUBLIC_BASE_DOMAIN
+ * Resolve o tenant baseado no subdomain
+ * Se subdomain não for passado, retorna modo platform
+ * Se existir, busca no Prisma pelo slug e retorna tenantId e tenant
+ * Se não encontrar, estoura um erro
  */
-export function getBaseDomain(): string {
-  // Server-side: usa variável de ambiente ou fallback
-  return process.env.NEXT_PUBLIC_BASE_DOMAIN || "evolue.com.br";
-}
-
-/**
- * Normaliza o hostname da requisição
- * Remove porta, www, e converte para lowercase
- */
-export function normalizeHost(headers: Headers): string {
-  const host =
-    headers.get("host") ||
-    headers.get("x-forwarded-host") ||
-    headers.get("x-vercel-deployment-url") ||
-    "";
-
-  if (!host) {
-    return "";
-  }
-
-  // Remove porta (ex: :3000)
-  let normalized = host.split(":")[0];
-
-  // Remove www. prefix
-  if (normalized.startsWith("www.")) {
-    normalized = normalized.slice(4);
-  }
-
-  return normalized.toLowerCase();
-}
-
-/**
- * Resolve o tenantId baseado no hostname
- * Busca diretamente no banco de dados pelo hostname (subdomínio ou domínio personalizado)
- * Se não encontrar e for app.{baseDomain}, retorna modo plataforma
- */
-export async function resolveTenantId(
-  hostname: string,
-  baseDomain: string
+export async function resolveTenant(
+  subdomain?: string | null
 ): Promise<TenantResolutionResult> {
-  if (!hostname) {
+  // Se subdomain não for passado ou for igual ao adminSubdomain, retorna modo platform
+  if (!subdomain || subdomain === adminSubdomain) {
     return {
       tenantId: null,
       tenant: null,
-      mode: "platform",
+      tenantMode: "platform",
     };
   }
 
-  // Verifica se é modo plataforma (app.{baseDomain})
-  const platformHost = `app.${baseDomain}`;
-  if (hostname === platformHost) {
-    return {
-      tenantId: null,
-      tenant: null,
-      mode: "platform",
-    };
+  // Busca tenant pelo slug no banco de dados
+  const tenant = await prisma.tenant.findUnique({
+    where: { slug: subdomain },
+  });
+
+  // Se não encontrar, estoura um erro
+  if (!tenant) {
+    throw new Error(`Tenant não encontrado para o subdomain: ${subdomain}`);
   }
 
-  // Busca tenant pelo hostname no banco de dados
-  try {
-    const domain = await prisma.domain.findUnique({
-      where: { hostname },
-      include: { tenant: true },
-    });
-
-    if (domain?.tenant) {
-      return {
-        tenantId: domain.tenant.id,
-        tenant: domain.tenant,
-        mode: "tenant",
-      };
-    }
-
-    // Se não encontrou por hostname completo, tenta por slug (subdomínio)
-    if (hostname.endsWith(`.${baseDomain}`)) {
-      const slug = hostname.replace(`.${baseDomain}`, "");
-      if (slug) {
-        const tenant = await prisma.tenant.findUnique({
-          where: { slug },
-        });
-
-        if (tenant) {
-          return {
-            tenantId: tenant.id,
-            tenant,
-            mode: "tenant",
-          };
-        }
-      }
-    }
-
-    // Não encontrou tenant
-    return {
-      tenantId: null,
-      tenant: null,
-      mode: "tenant",
-    };
-  } catch (error) {
-    // Se a tabela não existe, retorna modo plataforma para não quebrar o app
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "P2021"
-    ) {
-      console.warn(
-        "Database tables not found. Please run migrations: prisma migrate deploy"
-      );
-      return {
-        tenantId: null,
-        tenant: null,
-        mode: "platform",
-      };
-    }
-
-    console.error("Error resolving tenant:", error);
-    return {
-      tenantId: null,
-      tenant: null,
-      mode: "tenant",
-    };
-  }
+  // Retorna com tenantId e tenant corretamente
+  return {
+    tenantId: tenant.id,
+    tenant,
+    tenantMode: "tenant",
+  };
 }
 
 /**
  * Valida o resultado da resolução e retorna erro se necessário
+ * Observa o status do tenant e retorna erro se estiver SUSPENDED ou INACTIVE
+ * Também retorna erro se não encontrar tenant quando em modo tenant
  */
-export function validateTenantResolution(
+export function validateTenant(
   result: TenantResolutionResult
 ): TenantResolutionError | null {
-  if (result.mode === "platform") {
+  // Se for modo platform, não precisa validar
+  if (result.tenantMode === "platform") {
     return null;
   }
 
+  // Se não tiver tenantId ou tenant, retorna erro NOT_FOUND
   if (!result.tenantId || !result.tenant) {
     return {
       type: "NOT_FOUND",
@@ -150,6 +63,7 @@ export function validateTenantResolution(
     };
   }
 
+  // Valida status do tenant
   if (result.tenant.status === "SUSPENDED") {
     return {
       type: "SUSPENDED",
@@ -164,5 +78,83 @@ export function validateTenantResolution(
     };
   }
 
+  // Se passou todas as validações, retorna null (sem erro)
   return null;
+}
+
+/**
+ * Verifica se uma rota é pública (não requer autenticação)
+ */
+function isPublicRoute(pathname: string): boolean {
+  return (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname.startsWith("/reset-password")
+  );
+}
+
+/**
+ * Valida se o usuário tem acesso ao tenant
+ * Retorna true se o acesso deve ser permitido, false caso contrário
+ *
+ * Regras:
+ * - Modo platform (CRM): apenas usuários sem tenant (superadmin) podem acessar
+ * - Modo tenant: apenas usuários que pertencem àquele tenant específico podem acessar
+ *
+ * @param tenantId - ID do tenant
+ * @param tenantMode - Modo do tenant ("platform" ou "tenant")
+ * @param userId - ID do usuário autenticado (pode ser null se não autenticado)
+ * @param pathname - Caminho da rota atual
+ * @returns true se o acesso deve ser permitido, false caso contrário
+ */
+export async function validateTenantAccess(
+  tenantId: string | null,
+  tenantMode: "platform" | "tenant",
+  userId: string | null,
+  pathname: string
+): Promise<boolean> {
+  // Se for rota pública, permite acesso
+  if (isPublicRoute(pathname)) {
+    return true;
+  }
+
+  // Se não tiver usuário autenticado, permite continuar (será validado no layout protegido)
+  if (!userId) {
+    return true;
+  }
+
+  // Modo platform (CRM): apenas usuários sem tenant podem acessar
+  if (tenantMode === "platform") {
+    // Verifica se o usuário pertence a algum tenant
+    const userTenants = await prisma.tenantMember.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+
+    // Se o usuário pertence a algum tenant, não pode acessar o CRM
+    if (userTenants.length > 0) {
+      return false;
+    }
+
+    // Usuário sem tenant pode acessar o CRM
+    return true;
+  }
+
+  // Modo tenant: apenas usuários que pertencem àquele tenant específico podem acessar
+  if (tenantMode === "tenant" && tenantId) {
+    const member = await prisma.tenantMember.findUnique({
+      where: {
+        tenantId_userId: {
+          tenantId,
+          userId,
+        },
+      },
+    });
+
+    // Retorna true se for membro, false caso contrário
+    return member !== null;
+  }
+
+  // Caso padrão: permite acesso
+  return true;
 }

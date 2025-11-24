@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { RefreshCwIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -34,14 +35,34 @@ import {
 import { ROLES } from "@/constants/roles";
 import { trpc } from "@/trpc/client";
 
-const createUserSchema = z.object({
-  email: z.string().email("Email inválido"),
-  password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
-  name: z.string().min(1, "Nome é obrigatório"),
-  role: z.enum([ROLES.ADMIN, ROLES.MEMBER]),
-});
+const createUserSchema = z
+  .object({
+    email: z.string().email("Email inválido"),
+    password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+    confirmPassword: z.string().min(6, "Confirmação de senha é obrigatória"),
+    name: z.string().min(1, "Nome é obrigatório"),
+    role: z.enum([ROLES.ADMIN, ROLES.MEMBER]),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "As senhas não coincidem",
+    path: ["confirmPassword"],
+  });
 
 type CreateUserFormValues = z.infer<typeof createUserSchema>;
+
+/**
+ * Gera uma senha aleatória
+ */
+function generateRandomPassword(): string {
+  const length = 12;
+  const charset =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+  let password = "";
+  for (let i = 0; i < length; i++) {
+    password += charset.charAt(Math.floor(Math.random() * charset.length));
+  }
+  return password;
+}
 
 interface CreateUserDialogProps {
   open: boolean;
@@ -64,10 +85,17 @@ export function CreateUserDialog({
     defaultValues: {
       email: "",
       password: "",
+      confirmPassword: "",
       name: "",
       role: ROLES.MEMBER,
     },
   });
+
+  const handleGeneratePassword = () => {
+    const randomPassword = generateRandomPassword();
+    form.setValue("password", randomPassword);
+    form.setValue("confirmPassword", randomPassword);
+  };
 
   const onSubmit = async (values: CreateUserFormValues) => {
     if (!tenantId) {
@@ -76,13 +104,15 @@ export function CreateUserDialog({
     }
 
     try {
+      const { confirmPassword, ...userData } = values;
       await createMutation.mutateAsync({
         tenantId,
-        ...values,
+        ...userData,
         emailVerified: true,
       });
       toast.success("Usuário criado e adicionado ao tenant com sucesso!");
       form.reset();
+      onOpenChange(false);
       onSuccess?.();
     } catch (error) {
       toast.error(
@@ -110,6 +140,31 @@ export function CreateUserDialog({
                   <FormControl>
                     <Input {...field} placeholder={t("namePlaceholder")} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="role"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("role")}</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={t("selectRole")} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={ROLES.ADMIN}>Admin</SelectItem>
+                      <SelectItem value={ROLES.MEMBER}>Membro</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -153,28 +208,31 @@ export function CreateUserDialog({
 
             <FormField
               control={form.control}
-              name="role"
+              name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("role")}</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={t("selectRole")} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={ROLES.ADMIN}>Admin</SelectItem>
-                      <SelectItem value={ROLES.MEMBER}>Membro</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FormLabel>{t("confirmPassword")}</FormLabel>
+                  <FormControl>
+                    <Input
+                      {...field}
+                      type="password"
+                      placeholder={t("confirmPasswordPlaceholder")}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleGeneratePassword}
+              className="w-full"
+            >
+              <RefreshCwIcon className="mr-2 h-4 w-4" />
+              {t("generatePassword")}
+            </Button>
 
             <DialogFooter>
               <Button

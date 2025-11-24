@@ -5,7 +5,7 @@ export type TenantMode = "platform" | "tenant";
 export type TenantResolutionResult = {
   tenantId: string | null;
   tenant: Tenant | null;
-  mode: TenantMode;
+  tenantMode: TenantMode;
 };
 
 export type TenantResolutionError = {

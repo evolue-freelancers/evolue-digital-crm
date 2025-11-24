@@ -1,7 +1,6 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { RefreshCwIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -34,19 +33,11 @@ import {
 } from "@/components/ui/select";
 import { trpc } from "@/trpc/client";
 
-const createTenantSchema = z
-  .object({
-    name: z.string().min(1, "Nome é obrigatório"),
-    slug: z.string().min(1, "Slug é obrigatório"),
-    status: z.enum(["ACTIVE", "TRIAL", "SUSPENDED", "INACTIVE"]),
-    email: z.string().email("Email inválido"),
-    password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
-    confirmPassword: z.string().min(6, "Confirmação de senha é obrigatória"),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "As senhas não coincidem",
-    path: ["confirmPassword"],
-  });
+const createTenantSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório"),
+  slug: z.string().min(1, "Slug é obrigatório"),
+  status: z.enum(["ACTIVE", "TRIAL", "SUSPENDED", "INACTIVE"]),
+});
 
 type CreateTenantFormValues = z.infer<typeof createTenantSchema>;
 
@@ -64,20 +55,6 @@ function generateSlug(name: string): string {
     .replace(/\s+/g, "-") // Substitui espaços por hífen
     .replace(/-+/g, "-") // Remove hífens duplicados
     .replace(/^-|-$/g, ""); // Remove hífens do início e fim
-}
-
-/**
- * Gera uma senha aleatória
- */
-function generateRandomPassword(): string {
-  const length = 12;
-  const charset =
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-  let password = "";
-  for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
-  }
-  return password;
 }
 
 interface CreateTenantDialogProps {
@@ -100,9 +77,6 @@ export function CreateTenantDialog({
       name: "",
       slug: "",
       status: "TRIAL",
-      email: "",
-      password: "",
-      confirmPassword: "",
     },
   });
 
@@ -112,23 +86,16 @@ export function CreateTenantDialog({
     form.setValue("slug", generatedSlug);
   };
 
-  const handleGeneratePassword = () => {
-    const randomPassword = generateRandomPassword();
-    form.setValue("password", randomPassword);
-    form.setValue("confirmPassword", randomPassword);
-  };
-
   const onSubmit = async (values: CreateTenantFormValues) => {
     try {
       await createMutation.mutateAsync({
         name: values.name,
         slug: values.slug,
         status: values.status,
-        email: values.email,
-        password: values.password,
       });
       toast.success("Tenant criado com sucesso!");
       form.reset();
+      onOpenChange(false);
       onSuccess?.();
     } catch (error) {
       toast.error(
@@ -208,71 +175,6 @@ export function CreateTenantDialog({
                       <SelectItem value="INACTIVE">Inativo</SelectItem>
                     </SelectContent>
                   </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("email")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      type="email"
-                      placeholder={t("emailPlaceholder")}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("password")}</FormLabel>
-                  <FormControl>
-                    <div className="flex gap-2">
-                      <Input
-                        {...field}
-                        type="password"
-                        placeholder={t("passwordPlaceholder")}
-                        className="flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleGeneratePassword}
-                        title={t("generatePassword")}
-                      >
-                        <RefreshCwIcon className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="confirmPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("confirmPassword")}</FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      type="password"
-                      placeholder={t("confirmPasswordPlaceholder")}
-                    />
-                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
