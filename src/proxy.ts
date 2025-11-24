@@ -86,7 +86,7 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // NÃO reescreve mais o pathname: "/" continua sendo "/"
+  // NÃO reescreve o pathname: "/" continua sendo "/"
   const url = request.nextUrl.clone();
   const modifiedRequest = new NextRequest(url, {
     headers: request.headers,
